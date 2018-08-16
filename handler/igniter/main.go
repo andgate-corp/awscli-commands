@@ -132,7 +132,6 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 		} else {
 
 			result := service.GetResult()
-
 			response = SlackResponse{
 				Text:         result.Text,
 				ResponseType: Ephemeral,

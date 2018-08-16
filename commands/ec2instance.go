@@ -33,6 +33,10 @@ func (c *EC2Command) Run(argv []string) error {
 	switch argv[0] {
 	case DescribeInstances:
 		return c.DescribeInstances(argv[1:])
+	case StartInstances:
+		return c.StartInstances(argv[1:])
+	case StopInstances:
+		return c.StopInstances(argv[1:])
 	default:
 		msg := fmt.Sprintf("[EC2] Command %s is not supported.", argv[0])
 		return fmt.Errorf(msg)
@@ -109,7 +113,6 @@ func (c *EC2Command) DescribeInstances(argv []string) error {
 func createAttachment(instance *ec2.Instance, region string) interface{} {
 
 	att := ButtonActionAttachment{
-		Title: "Instance information",
 		Fields: []AttachmentField{
 			{Title: "InstanceID", Value: *instance.InstanceId, Short: true},
 			{Title: "VpcId", Value: *instance.VpcId, Short: true},
@@ -134,7 +137,7 @@ func createAttachment(instance *ec2.Instance, region string) interface{} {
 				Name:  "action",
 				Type:  "button",
 				Text:  "Start Instance",
-				Value: fmt.Sprintf("start-instances -InstanceId %s -Region %s", *instance.InstanceId, region),
+				Value: fmt.Sprintf("ec2 start-instances -InstanceID %s -Region %s", *instance.InstanceId, region),
 				Style: "primary",
 			},
 		}
@@ -146,14 +149,14 @@ func createAttachment(instance *ec2.Instance, region string) interface{} {
 				Name:  "action",
 				Type:  "button",
 				Text:  "Stop Instance",
-				Value: fmt.Sprintf("stop-instances -InstanceId %s -Region %s", *instance.InstanceId, region),
+				Value: fmt.Sprintf("ec2 stop-instances -InstanceID %s -Region %s", *instance.InstanceId, region),
 				Style: "danger",
 			},
 			{
 				Name:  "action",
 				Type:  "button",
 				Text:  "Stop Instance(Force)",
-				Value: fmt.Sprintf("stop-instances -Force -InstanceId %s -Region %s", *instance.InstanceId, region),
+				Value: fmt.Sprintf("ec2 stop-instances -Force -InstanceID %s -Region %s", *instance.InstanceId, region),
 			},
 		}
 	}
@@ -197,8 +200,8 @@ func (c *EC2Command) StartInstances(argv []string) error {
 	c.Result.Text = fmt.Sprintf(
 		"Starting instances %s (Prev: %s -> Current: %s",
 		*inst.InstanceId,
-		*inst.PreviousState,
-		*inst.CurrentState)
+		*inst.PreviousState.Name,
+		*inst.CurrentState.Name)
 
 	return nil
 }
@@ -241,8 +244,8 @@ func (c *EC2Command) StopInstances(argv []string) error {
 	c.Result.Text = fmt.Sprintf(
 		"Stopping instances %s (Prev: %s -> Current: %s)",
 		*inst.InstanceId,
-		*inst.PreviousState,
-		*inst.CurrentState)
+		*inst.PreviousState.Name,
+		*inst.CurrentState.Name)
 
 	return nil
 }

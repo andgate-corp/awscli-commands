@@ -33,7 +33,6 @@ func (r CommandResult) String() string {
 }
 
 type ButtonActionAttachment struct {
-	Title      string             `json:"title"`
 	Text       string             `json:"text"`
 	Fallback   string             `json:"fallback"`
 	CallbackID string             `json:"callback_id"`
