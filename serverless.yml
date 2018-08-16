@@ -1,0 +1,45 @@
+service: awscli-commands
+
+provider:
+  name: aws
+  runtime: go1.x
+
+  stage: dev
+  memorySize: 128
+  region: ap-northeast-1
+  iamRoleStatements:
+    - Effect: "Allow"
+      Action:
+        - "ec2:DescribeInstances"
+        - "ec2:StartInstances"
+        - "ec2:StopInstances"
+      Resource:
+        Fn::Join:
+          - ""
+          - - "*"
+
+custom: ${file(./custom.yml)}
+
+package:
+  exclude:
+    - ./**
+  include:
+    - ./bin/**
+
+functions:
+  awscli:
+    handler: bin/igniter
+    events:
+      - http:
+          path: awscli
+          method: post
+    environment:
+      REQUEST_VERIFICATION_TOKEN: ${self:custom.verificationToken}
+  interaction:
+    handler: bin/interaction
+    events:
+      - http:
+          path: awscli/interaction
+          method: post
+    environment:
+      REQUEST_VERIFICATION_TOKEN: ${self:custom.verificationToken}
