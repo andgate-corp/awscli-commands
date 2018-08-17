@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"github.com/t_sumisaki/awscli-commands/commands"
+	"github.com/t-sumisaki/awscli-commands/commands"
 )
 
 type ResponseType int
@@ -56,11 +56,6 @@ func (r *SlackResponse) String() string {
 	fmt.Printf(string(b))
 
 	return string(b)
-}
-
-type Command interface {
-	Run([]string) error
-	GetResult() commands.CommandResult
 }
 
 func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
@@ -108,7 +103,7 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 		}, nil
 	}
 
-	var service Command
+	var service commands.Command
 
 	switch argv[0] {
 	case EC2:

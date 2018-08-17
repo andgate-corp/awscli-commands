@@ -4,23 +4,18 @@ import (
 	"encoding/json"
 )
 
-type ResultType int
+// Command コマンド用共通インターフェース
+type Command interface {
+	Run([]string) error
+	GetResult() CommandResult
+}
 
-const (
-	Message ResultType = iota
-	ButtonAction
-)
-
+// CommandResult Commandインターフェースの結果出力用構造体
 type CommandResult struct {
 	Text        string
-	ResultType  ResultType
 	Color       string
 	Attachments []interface{}
 }
-
-type AttachmentColor string
-
-const ()
 
 func (r CommandResult) String() string {
 	b, err := json.Marshal(r)
@@ -32,6 +27,7 @@ func (r CommandResult) String() string {
 	return string(b)
 }
 
+// ButtonActionAttachment ButtonActions用のAttachment構造体
 type ButtonActionAttachment struct {
 	Text       string             `json:"text"`
 	Fallback   string             `json:"fallback"`
@@ -40,6 +36,7 @@ type ButtonActionAttachment struct {
 	Fields     []AttachmentField  `json:"fields, omitempty"`
 }
 
+// ButtonActionItem Action用ボタン情報の構造体
 type ButtonActionItem struct {
 	Name  string `json:"name"`
 	Type  string `json:"type"`
@@ -48,6 +45,7 @@ type ButtonActionItem struct {
 	Style string `json:"style, omitempty"`
 }
 
+// AttachmentField Attachmentの汎用フィールド構造体
 type AttachmentField struct {
 	Title string `json:"title"`
 	Value string `json:"value"`

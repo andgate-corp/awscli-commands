@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/t_sumisaki/awscli-commands/commands"
+	"github.com/t-sumisaki/awscli-commands/commands"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -61,11 +61,6 @@ func (r SlackInteractionResponse) String() string {
 	return string(b)
 }
 
-type Command interface {
-	Run([]string) error
-	GetResult() commands.CommandResult
-}
-
 func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
 	var response SlackInteractionResponse
@@ -102,7 +97,7 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 			}
 		} else {
 
-			var service Command
+			var service commands.Command
 			var out = &bytes.Buffer{}
 
 			argv := strings.Split(req.Actions[0].Value, " ")

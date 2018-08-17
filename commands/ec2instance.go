@@ -11,21 +11,25 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2"
 )
 
+// EC2コマンドの定義
 const (
 	DescribeInstances = "describe-instances"
 	StartInstances    = "start-instances"
 	StopInstances     = "stop-instances"
 )
 
+// EC2Command EC2関連コマンド用インターフェース
 type EC2Command struct {
 	OutStream, ErrStream io.Writer
 	Result               CommandResult
 }
 
+// GetResult コマンドの結果を取得する
 func (c *EC2Command) GetResult() CommandResult {
 	return c.Result
 }
 
+// Run コマンドを実行する
 func (c *EC2Command) Run(argv []string) error {
 
 	c.Result = CommandResult{}
@@ -43,8 +47,10 @@ func (c *EC2Command) Run(argv []string) error {
 	}
 }
 
+// TagNamesValue Nameタグ取得用のエイリアス
 type TagNamesValue []string
 
+// Set flag.Valueインターフェース実装
 func (v *TagNamesValue) Set(s string) error {
 	strs := strings.Split(s, ",")
 	*v = append(*v, strs...)
@@ -55,6 +61,7 @@ func (v *TagNamesValue) String() string {
 	return strings.Join(([]string)(*v), ",")
 }
 
+// DescribeInstances インスタンス情報を取得する
 func (c *EC2Command) DescribeInstances(argv []string) error {
 
 	var (
@@ -110,6 +117,7 @@ func (c *EC2Command) DescribeInstances(argv []string) error {
 	return nil
 }
 
+// createAttachment SlackのAttachment形式のデータ構造を作成する
 func createAttachment(instance *ec2.Instance, region string) interface{} {
 
 	att := ButtonActionAttachment{
@@ -163,6 +171,7 @@ func createAttachment(instance *ec2.Instance, region string) interface{} {
 	return att
 }
 
+// StartInstances 指定のインスタンスを実行状態にする
 func (c *EC2Command) StartInstances(argv []string) error {
 
 	var (
@@ -205,6 +214,8 @@ func (c *EC2Command) StartInstances(argv []string) error {
 
 	return nil
 }
+
+// StopInstances 指定のインスタンスを停止状態にする
 func (c *EC2Command) StopInstances(argv []string) error {
 
 	var (
