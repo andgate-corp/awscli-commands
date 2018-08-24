@@ -7,8 +7,8 @@ Interactive command in slack for aws-cli
     - REQUIRE dep
 - Node.js
     - REQUIRE Serverless framework
-
-
+- Docker
+    - 動作確認済みの環境: Docker version 18.06.0-ce, build 0ffa825
 
 # 事前設定
 - Slack Appの設定
@@ -23,14 +23,37 @@ verificationToken: <Slack AppのVerificationToken>
 
 
 # デプロイ
-- ビルド
+
+- Dockerの起動
+
+dockerデーモンを起動して下さい
+
+- golang用コンテナの作成
+
+golangをbuildするためのコンテナを生成します.
+
 ```
-make build
+make build-docker-golang
+```
+
+- 依存パッケージの導入
+
+```
+make run-dep-ensure
+```
+
+- ビルド
+
+```
+make run-build
 ```
 
 - デプロイ
+
+softinstigate/serverless へ `$HOME/.aws` と このDirectoryをVOLUME共有して `sls deploy` を実行します。
+
 ```
-sls deploy
+make sls-deploy aws_profile=<deployターゲットのAWS PROFILE名> region=<AWS REGION>
 ```
 
 # ビルド後設定
