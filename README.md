@@ -30,7 +30,7 @@ dockerデーモンを起動して下さい
 
 - golang用コンテナの作成
 
-golangをbuildするためのコンテナを生成します.
+golangをbuildするためのコンテナ(awscli-command:latest)を生成します.
 
 ```
 make build-docker-golang
