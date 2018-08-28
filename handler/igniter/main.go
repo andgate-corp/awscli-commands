@@ -11,7 +11,7 @@ import (
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
 
-	"github.com/t-sumisaki/awscli-commands/commands"
+	"github.com/andgate-corp/awscli-commands/commands"
 )
 
 type ResponseType int

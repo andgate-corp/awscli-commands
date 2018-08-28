@@ -8,7 +8,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/t-sumisaki/awscli-commands/commands"
+	"github.com/andgate-corp/awscli-commands/commands"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
