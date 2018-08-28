@@ -70,7 +70,7 @@ func (c *EC2Command) DescribeInstances(argv []string) error {
 		region   string
 	)
 
-	flags := flag.NewFlagSet("describe-instances", flag.ContinueOnError)
+	flags := flag.NewFlagSet(DescribeInstances, flag.ContinueOnError)
 	flags.StringVar(&region, "Region", "", "Region")
 	flags.Var((*TagNamesValue)(&tagnames), "Name", "Set comma separates 'tag:Names' (ex: A,B,C)")
 
@@ -179,7 +179,7 @@ func (c *EC2Command) StartInstances(argv []string) error {
 		instanceID string
 	)
 
-	flags := flag.NewFlagSet("start-instances", flag.ContinueOnError)
+	flags := flag.NewFlagSet(StartInstances, flag.ContinueOnError)
 	flags.StringVar(&region, "Region", "", "Region")
 	flags.StringVar(&instanceID, "InstanceID", "", "InstanceID")
 
@@ -224,7 +224,7 @@ func (c *EC2Command) StopInstances(argv []string) error {
 		force      bool
 	)
 
-	flags := flag.NewFlagSet("stop-instances", flag.ContinueOnError)
+	flags := flag.NewFlagSet(StopInstances, flag.ContinueOnError)
 	flags.StringVar(&region, "Region", "", "Region")
 	flags.StringVar(&instanceID, "InstanceID", "", "InstanceID")
 	flags.BoolVar(&force, "Force", false, "Force stop")
