@@ -11,18 +11,18 @@ build-golang:
 	env GOOS=linux go build -ldflags="-s -w" -o bin/interaction handler/interaction/main.go
 
 run-dep-ensure:
-	docker run --rm -v "$PWD":/go/src/app -w /go/src/app awscli-command:latest make dep-ensure
+	docker run --rm -v "$$PWD":/go/src/app -w /go/src/app awscli-command:latest make dep-ensure
 
 run-build:
-ifeq ($(OS),Windows_NT)
+ifeq ($$(OS),Windows_NT)
 # for Windows
-	docker run --rm -v "$PWD":/go/src/app -w /go/src/app awscli-command:latest make build-golang
+	docker run --rm -v "$$PWD":/go/src/app -w /go/src/app awscli-command:latest make build-golang
 else
-	docker run --rm -v "$PWD":/go/src/app -w /go/src/app awscli-command:latest make build-golang
+	docker run --rm -v "$$PWD":/go/src/app -w /go/src/app awscli-command:latest make build-golang
 endif
 
 sls-deploy: 
-	docker run --rm -v ${HOME}/.aws:/root/.aws -v ${PWD}:/go/src/app \
+	docker run --rm -v $${HOME}/.aws/credentials:/root/.aws/credentials -v $${PWD}:/go/src/app \
 	-e AWS_PROFILE=${aws_profile} -e AWS_DEFAULT_REGION=${region} \
 	-w /go/src/app \
 	softinstigate/serverless sls deploy
