@@ -1,10 +1,13 @@
 package commands
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/andgate-corp/awscli-commands/slack"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -13,26 +16,31 @@ import (
 
 // EC2コマンドの定義
 const (
-	DescribeInstances = "describe-instances"
-	StartInstances    = "start-instances"
-	StopInstances     = "stop-instances"
+	DescribeInstances    = "describe-instances"
+	StartInstances       = "start-instances"
+	StopInstances        = "stop-instances"
+	StartInstancesDialog = "start-instances-dialog"
+	StopInstancesDialog  = "stop-instances-dialog"
 )
 
 // EC2Command EC2関連コマンド用インターフェース
 type EC2Command struct {
 	OutStream, ErrStream io.Writer
-	Result               CommandResult
+	ResponseData         interface{}
+	DataType             DataType
+}
+
+func (c *EC2Command) GetDataType() DataType {
+	return c.DataType
 }
 
 // GetResult コマンドの結果を取得する
-func (c *EC2Command) GetResult() CommandResult {
-	return c.Result
+func (c *EC2Command) GetData() interface{} {
+	return c.ResponseData
 }
 
 // Run コマンドを実行する
 func (c *EC2Command) Run(argv []string) error {
-
-	c.Result = CommandResult{}
 
 	switch argv[0] {
 	case DescribeInstances:
@@ -41,6 +49,10 @@ func (c *EC2Command) Run(argv []string) error {
 		return c.StartInstances(argv[1:])
 	case StopInstances:
 		return c.StopInstances(argv[1:])
+	case StartInstancesDialog:
+		return c.StartInstancesDialog(argv[1:])
+	case StopInstancesDialog:
+		return c.StopInstancesDialog(argv[1:])
 	default:
 		msg := fmt.Sprintf("[EC2] Command %s is not supported.", argv[0])
 		return fmt.Errorf(msg)
@@ -81,8 +93,6 @@ func (c *EC2Command) DescribeInstances(argv []string) error {
 	sess := session.Must(session.NewSession())
 	svc := ec2.New(sess, aws.NewConfig().WithRegion(region))
 
-	fmt.Println(tagnames)
-
 	if len(tagnames) > 0 {
 		input.Filters = []*ec2.Filter{
 			{
@@ -98,21 +108,22 @@ func (c *EC2Command) DescribeInstances(argv []string) error {
 		return err
 	}
 
-	for _, resv := range output.Reservations {
-		for _, inst := range resv.Instances {
-			c.Result.Attachments = append(c.Result.Attachments, createAttachment(inst, region))
-		}
-	}
+	instances := extractInstances(output)
+	responseData := &slack.MessageResponse{}
 
-	if len(c.Result.Attachments) > 0 {
-		msg := fmt.Sprintf("Found %d Instances.", len(c.Result.Attachments))
-		c.Result.Text = msg
+	if len(instances) > 0 {
+		msg := fmt.Sprintf("Found %d Instances.", len(instances))
+		responseData.Text = msg
+		for _, inst := range instances {
+			responseData.Attachments = append(responseData.Attachments, createAttachment(inst, region))
+		}
 	} else {
 		msg := "Instance is not found."
-		c.Result = CommandResult{
-			Text: msg,
-		}
+		responseData.Text = msg
 	}
+
+	c.DataType = Message
+	c.ResponseData = responseData
 
 	return nil
 }
@@ -120,8 +131,8 @@ func (c *EC2Command) DescribeInstances(argv []string) error {
 // createAttachment SlackのAttachment形式のデータ構造を作成する
 func createAttachment(instance *ec2.Instance, region string) interface{} {
 
-	att := ButtonActionAttachment{
-		Fields: []AttachmentField{
+	att := slack.ButtonActionAttachment{
+		Fields: []slack.AttachmentField{
 			{Title: "InstanceID", Value: *instance.InstanceId, Short: true},
 			{Title: "VpcId", Value: *instance.VpcId, Short: true},
 			{Title: "Region", Value: region, Short: true},
@@ -140,7 +151,7 @@ func createAttachment(instance *ec2.Instance, region string) interface{} {
 	if *instance.State.Name == "stopped" {
 		att.Fallback = "Start instance"
 		att.CallbackID = "start_instance"
-		att.Actions = []ButtonActionItem{
+		att.Actions = []slack.ButtonActionItem{
 			{
 				Name:  "action",
 				Type:  "button",
@@ -152,7 +163,7 @@ func createAttachment(instance *ec2.Instance, region string) interface{} {
 	} else {
 		att.Fallback = "Stop instance"
 		att.CallbackID = "stop_instance"
-		att.Actions = []ButtonActionItem{
+		att.Actions = []slack.ButtonActionItem{
 			{
 				Name:  "action",
 				Type:  "button",
@@ -188,7 +199,7 @@ func (c *EC2Command) StartInstances(argv []string) error {
 	}
 
 	if instanceID == "" {
-		return fmt.Errorf("InstanceID is not define.")
+		return errors.New("instanceID is not define")
 	}
 
 	sess := session.Must(session.NewSession())
@@ -204,14 +215,18 @@ func (c *EC2Command) StartInstances(argv []string) error {
 		return err
 	}
 
+	responseData := &slack.MessageResponse{}
+
 	inst := output.StartingInstances[0]
 
-	c.Result.Text = fmt.Sprintf(
+	responseData.Text = fmt.Sprintf(
 		"Starting instances %s (Prev: %s -> Current: %s",
 		*inst.InstanceId,
 		*inst.PreviousState.Name,
 		*inst.CurrentState.Name)
 
+	c.DataType = Message
+	c.ResponseData = responseData
 	return nil
 }
 
@@ -234,7 +249,7 @@ func (c *EC2Command) StopInstances(argv []string) error {
 	}
 
 	if instanceID == "" {
-		return fmt.Errorf("InstaneID is not define.")
+		return fmt.Errorf("instaneID is not define")
 	}
 
 	sess := session.Must(session.NewSession())
@@ -251,12 +266,184 @@ func (c *EC2Command) StopInstances(argv []string) error {
 		return err
 	}
 
+	responseData := &slack.MessageResponse{}
+
 	inst := output.StoppingInstances[0]
-	c.Result.Text = fmt.Sprintf(
+	responseData.Text = fmt.Sprintf(
 		"Stopping instances %s (Prev: %s -> Current: %s)",
 		*inst.InstanceId,
 		*inst.PreviousState.Name,
 		*inst.CurrentState.Name)
 
+	c.DataType = Message
+	c.ResponseData = responseData
+
 	return nil
+}
+
+// StartInstancesDialog インスタンススタート用ダイアログ表示コマンド
+func (c *EC2Command) StartInstancesDialog(argv []string) error {
+
+	var (
+		input    = &ec2.DescribeInstancesInput{}
+		region   string
+		tagnames []string
+	)
+
+	flags := flag.NewFlagSet(StartInstancesDialog, flag.ContinueOnError)
+	flags.StringVar(&region, "Region", "", "Region")
+	flags.Var((*TagNamesValue)(&tagnames), "Name", "Set commma separates 'tag:Names' (ex: A,B,C)")
+
+	if err := flags.Parse(argv); err != nil {
+		return err
+	}
+
+	sess := session.Must(session.NewSession())
+
+	svc := ec2.New(sess, aws.NewConfig().WithRegion(region))
+
+	input.Filters = []*ec2.Filter{
+		{
+			Name: aws.String("instance-state-name"),
+			Values: aws.StringSlice([]string{
+				"stopped",
+			}),
+		},
+	}
+
+	if len(tagnames) > 0 {
+		input.Filters = append(input.Filters, &ec2.Filter{
+			Name:   aws.String("tag:Name"),
+			Values: aws.StringSlice(tagnames),
+		})
+	}
+
+	output, err := svc.DescribeInstances(input)
+	if err != nil {
+		return err
+	}
+
+	instances := extractInstances(output)
+
+	if len(instances) > 0 {
+		dialog := parseManageInstancesDialog(instances)
+		dialog.Title = "Start Instance"
+		dialog.CallbackID = "dialog_submission"
+
+		c.DataType = Dialog
+		c.ResponseData = dialog
+	} else {
+		c.DataType = Message
+		c.ResponseData = &slack.MessageResponse{
+			Text: "Instance is not found.",
+		}
+
+	}
+
+	return nil
+}
+
+// StopInstancesDialog インスタンス停止用ダイアログ表示コマンド
+func (c *EC2Command) StopInstancesDialog(argv []string) error {
+
+	var (
+		input    = &ec2.DescribeInstancesInput{}
+		region   string
+		tagnames []string
+	)
+
+	flags := flag.NewFlagSet(StartInstancesDialog, flag.ContinueOnError)
+	flags.StringVar(&region, "Region", "", "Region")
+	flags.Var((*TagNamesValue)(&tagnames), "Name", "Set commma separates 'tag:Names' (ex: A,B,C)")
+
+	if err := flags.Parse(argv); err != nil {
+		return err
+	}
+
+	sess := session.Must(session.NewSession())
+
+	svc := ec2.New(sess, aws.NewConfig().WithRegion(region))
+
+	input.Filters = []*ec2.Filter{
+		{
+			Name: aws.String("instance-state-name"),
+			Values: aws.StringSlice([]string{
+				"running",
+			}),
+		},
+	}
+
+	if len(tagnames) > 0 {
+		input.Filters = append(input.Filters, &ec2.Filter{
+			Name:   aws.String("tag:Name"),
+			Values: aws.StringSlice(tagnames),
+		})
+	}
+
+	output, err := svc.DescribeInstances(input)
+	if err != nil {
+		return err
+	}
+
+	instances := extractInstances(output)
+
+	if len(instances) > 0 {
+		dialog := parseManageInstancesDialog(instances)
+		dialog.Title = "Stop Instance"
+		dialog.CallbackID = "dialog_submission"
+
+		c.DataType = Dialog
+		c.ResponseData = dialog
+	} else {
+		c.DataType = Message
+		c.ResponseData = &slack.MessageResponse{
+			Text: "Instance is not found.",
+		}
+
+	}
+
+	return nil
+}
+
+func getTagName(instance *ec2.Instance, defaultValue string) string {
+	for _, t := range instance.Tags {
+		if *t.Key == "Name" {
+			return *t.Value
+		}
+	}
+	return defaultValue
+
+}
+
+func parseManageInstancesDialog(instances []*ec2.Instance) *slack.DialogBody {
+
+	dialog := &slack.DialogBody{}
+
+	dialog.SubmitLabel = "Execute"
+	dialog.NotifyOnCancel = false
+
+	selectElem := dialog.AddSelectElement("instance_id", "Instance ID")
+
+	for _, inst := range instances {
+
+		tagName := getTagName(inst, "null")
+		instanceID := *inst.InstanceId
+
+		selectElem.AddOption(fmt.Sprintf("%s [TagName: %s]", instanceID, tagName), instanceID)
+	}
+
+	return dialog
+}
+
+func extractInstances(output *ec2.DescribeInstancesOutput) []*ec2.Instance {
+
+	var instances []*ec2.Instance
+
+	for _, resv := range output.Reservations {
+		for _, inst := range resv.Instances {
+			instances = append(instances, inst)
+		}
+	}
+
+	return instances
 }

@@ -2,11 +2,15 @@ package main
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"github.com/andgate-corp/awscli-commands/slack"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -14,61 +18,27 @@ import (
 	"github.com/andgate-corp/awscli-commands/commands"
 )
 
-type ResponseType int
-
 const (
-	Ephemeral ResponseType = iota
-	InChannel
-)
-
-const (
+	// HELP show help (not implements)
 	HELP = "help"
-	EC2  = "ec2"
+	// EC2 EC2 commands
+	EC2 = "ec2"
+	// DUMMY dummy commands
+	DUMMY = "dummy"
 )
 
-func (t ResponseType) String() string {
-	switch t {
-	case Ephemeral:
-		return "ephemeral"
-	case InChannel:
-		return "in_channel"
-	default:
-		return ""
-	}
-}
-func (t ResponseType) MarshalJSON() ([]byte, error) {
-	return []byte(`"` + t.String() + `"`), nil
-}
-
-type SlackResponse struct {
-	ResponseType ResponseType  `json:"response_type"`
-	Text         string        `json:"text"`
-	Attachments  []interface{} `json:"attachments, omitempty"`
-}
-
-func (r *SlackResponse) String() string {
-	b, err := json.Marshal(r)
-
-	if err != nil {
-		return ""
-	}
-
-	fmt.Printf(string(b))
-
-	return string(b)
-}
-
+// Handler Lambda main handler
 func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyResponse, error) {
 
-	var response SlackResponse
+	var response slack.Response
 	var out = &bytes.Buffer{}
 
 	// Parse request body
 	values, err := url.ParseQuery(request.Body)
 	if err != nil {
-		response = SlackResponse{
+		response = slack.MessageResponse{
 			Text:         "Invalid Request",
-			ResponseType: Ephemeral,
+			ResponseType: slack.Ephemeral,
 		}
 		return events.APIGatewayProxyResponse{
 			Body:       response.String(),
@@ -79,9 +49,9 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 	// Verify tokens
 	token := os.Getenv("REQUEST_VERIFICATION_TOKEN")
 	if token != values.Get("token") {
-		response = SlackResponse{
+		response = slack.MessageResponse{
 			Text:         "Invalid Request",
-			ResponseType: Ephemeral,
+			ResponseType: slack.Ephemeral,
 		}
 		return events.APIGatewayProxyResponse{
 			Body:       response.String(),
@@ -89,13 +59,13 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 		}, nil
 	}
 
-	fmt.Printf(values.Get("text"))
+	triggerID := values.Get("trigger_id")
 	argv := strings.Split(values.Get("text"), " ")
 
 	if len(argv) < 1 {
-		response = SlackResponse{
+		response = slack.MessageResponse{
 			Text:         "Invalid Request",
-			ResponseType: Ephemeral,
+			ResponseType: slack.Ephemeral,
 		}
 		return events.APIGatewayProxyResponse{
 			Body:       response.String(),
@@ -111,6 +81,11 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 			OutStream: out,
 			ErrStream: out,
 		}
+	case DUMMY:
+		service = &commands.DummyDialogCommand{
+			OutStream: out,
+			ErrStream: out,
+		}
 	}
 
 	if service != nil {
@@ -120,26 +95,87 @@ func Handler(request events.APIGatewayProxyRequest) (events.APIGatewayProxyRespo
 
 		if err != nil {
 			fmt.Println(err.Error())
-			response = SlackResponse{
+			response = slack.MessageResponse{
 				Text:         fmt.Sprintf("Error: %s", err.Error()),
-				ResponseType: Ephemeral,
+				ResponseType: slack.Ephemeral,
 			}
 		} else {
+			if service.GetDataType() == commands.Message {
 
-			result := service.GetResult()
-			response = SlackResponse{
-				Text:         result.Text,
-				ResponseType: Ephemeral,
+				data, _ := service.GetData().(*slack.MessageResponse)
+				data.ResponseType = slack.Ephemeral
+				response = *data
 			}
 
-			if len(result.Attachments) > 0 {
-				response.Attachments = result.Attachments
+			if service.GetDataType() == commands.Dialog {
+
+				data, _ := service.GetData().(*slack.DialogBody)
+
+				if len(data.Elements) == 0 {
+					response = slack.MessageResponse{
+						Text: "Instance is not found.",
+					}
+				} else {
+
+					requestBody := slack.OpenDialogRequest{
+						TriggerID: triggerID,
+						Dialog:    *data,
+					}
+
+					fmt.Println(requestBody.String())
+
+					req, err := http.NewRequest(
+						"POST",
+						"https://slack.com/api/dialog.open",
+						bytes.NewBuffer([]byte(requestBody.String())),
+					)
+
+					if err != nil {
+						d := slack.MessageResponse{
+							Text: err.Error(),
+						}
+						fmt.Printf("BuildError, %s", err.Error())
+						return events.APIGatewayProxyResponse{
+							Body:       d.String(),
+							StatusCode: 200,
+						}, nil
+					}
+
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", os.Getenv("BOT_OAUTH_TOKEN")))
+
+					client := &http.Client{}
+					resp, err := client.Do(req)
+
+					if err != nil {
+						d := slack.MessageResponse{
+							Text: err.Error(),
+						}
+						fmt.Printf("RequestError, %s", err.Error())
+						return events.APIGatewayProxyResponse{
+							Body:       d.String(),
+							StatusCode: 200,
+						}, nil
+
+					}
+
+					defer resp.Body.Close()
+					body, error := ioutil.ReadAll(resp.Body)
+					if error != nil {
+						log.Fatal(error)
+					}
+					fmt.Println("[body] " + string(body))
+
+					response = slack.MessageResponse{
+						Text: "Open dialog requested.",
+					}
+				}
 			}
 		}
 	} else {
-		response = SlackResponse{
+		response = &slack.MessageResponse{
 			Text:         fmt.Sprintf("Not Supported: %s", argv[0]),
-			ResponseType: Ephemeral,
+			ResponseType: slack.Ephemeral,
 		}
 	}
 
