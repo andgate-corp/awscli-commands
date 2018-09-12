@@ -40,6 +40,7 @@ func (t ResponseType) MarshalJSON() ([]byte, error) {
 type MessageResponse struct {
 	ResponseType ResponseType  `json:"response_type"`
 	Text         string        `json:"text"`
+	Channel      string        `json:"channel, omitempty"`
 	Attachments  []interface{} `json:"attachments, omitempty"`
 }
 

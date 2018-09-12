@@ -44,3 +44,4 @@ functions:
           method: post
     environment:
       REQUEST_VERIFICATION_TOKEN: ${self:custom.verificationToken}
+      BOT_OAUTH_TOKEN: ${self:custom.botOAuthToken}

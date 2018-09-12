@@ -328,7 +328,8 @@ func (c *EC2Command) StartInstancesDialog(argv []string) error {
 	if len(instances) > 0 {
 		dialog := parseManageInstancesDialog(instances)
 		dialog.Title = "Start Instance"
-		dialog.CallbackID = "dialog_submission"
+		dialog.CallbackID = "ec2_instance_dialog"
+		dialog.State = fmt.Sprintf("ec2 start-instances -Region %s", region)
 
 		c.DataType = Dialog
 		c.ResponseData = dialog
@@ -350,11 +351,13 @@ func (c *EC2Command) StopInstancesDialog(argv []string) error {
 		input    = &ec2.DescribeInstancesInput{}
 		region   string
 		tagnames []string
+		force    bool
 	)
 
 	flags := flag.NewFlagSet(StartInstancesDialog, flag.ContinueOnError)
 	flags.StringVar(&region, "Region", "", "Region")
 	flags.Var((*TagNamesValue)(&tagnames), "Name", "Set commma separates 'tag:Names' (ex: A,B,C)")
+	flags.BoolVar(&force, "Force", false, "Force stop dialog")
 
 	if err := flags.Parse(argv); err != nil {
 		return err
@@ -389,8 +392,19 @@ func (c *EC2Command) StopInstancesDialog(argv []string) error {
 
 	if len(instances) > 0 {
 		dialog := parseManageInstancesDialog(instances)
-		dialog.Title = "Stop Instance"
-		dialog.CallbackID = "dialog_submission"
+		dialog.Title = func() string {
+			if force {
+				return "Stop Instance (Force)"
+			}
+			return "Stop Instance"
+		}()
+		dialog.CallbackID = "ec2_instance_dialog"
+		dialog.State = fmt.Sprintf("ec2 stop-instances -Region %s %s", region, func() string {
+			if force {
+				return "-Force"
+			}
+			return ""
+		}())
 
 		c.DataType = Dialog
 		c.ResponseData = dialog
@@ -422,7 +436,7 @@ func parseManageInstancesDialog(instances []*ec2.Instance) *slack.DialogBody {
 	dialog.SubmitLabel = "Execute"
 	dialog.NotifyOnCancel = false
 
-	selectElem := dialog.AddSelectElement("instance_id", "Instance ID")
+	selectElem := dialog.AddSelectElement("InstanceID", "Instance ID")
 
 	for _, inst := range instances {
 
